@@ -24,10 +24,8 @@ class WindowsDAO(object):
 		
 		try:
 			connect = wmi.WMI(self.ip, user = self.user, password = self.passw)
-
 		except wmi.x_wmi:
 			connect = None
-
 		return connect
 
 	def getCredentials(self, credential):
@@ -42,7 +40,6 @@ class WindowsDAO(object):
 			if line.split(' = ')[0] == credential:
 				file.close()
 				return (line.split(' = ')[1].replace('\n', '').replace('"', ''))
-
 		file.close()
 
 	def getService(self, serviceName):
@@ -51,7 +48,6 @@ class WindowsDAO(object):
 		'''
 
 		sql = f"SELECT * FROM Win32_Service where DisplayName = '{serviceName}' OR Name = '{serviceName}' "
-
 		return self.connection.query(sql)
 
 	def getAllServices(self):
@@ -60,13 +56,10 @@ class WindowsDAO(object):
 		'''
 
 		services = ['a', 'b', 'c']
-
 		json = {}
-
+		
 		for service in services:
-
 			json['service'] = self.getService(service)[0]
-
 		return json
 
 	def startService(self, service):
@@ -75,11 +68,8 @@ class WindowsDAO(object):
 		'''
 
 		if service.State == 'Stopped':
-
 			service.StartService()
-
 		else:
-
 			raise Exception(f"erro ao iniciar o serviço {service.DisplayName}.")
 
 	def stopService(self, service):
@@ -88,11 +78,8 @@ class WindowsDAO(object):
 		'''
 
 		if service.State == 'Running':
-
 			service.StopService()
-
 		else:
-
 			raise Exception(f"erro ao parar o serviço {service.DisplayName}.")
 
 	def restartService(self, service):
@@ -124,13 +111,10 @@ if __name__ == "__main__":
 	if action == 'restart':
 
 		try:
-
 			windows.restartService(service)
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
-
 		except Exception as e:
-
 			print(f'não foi possível reiniciar o serviço {service}, {e}')
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
@@ -138,13 +122,10 @@ if __name__ == "__main__":
 	elif action == 'start':
 
 		try:
-
 			windows.startService(service)
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
-
 		except Exception as e:
-
 			print(f'não foi possível iniciar o serviço {service}')
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
@@ -152,13 +133,10 @@ if __name__ == "__main__":
 	elif action == 'stop':
 
 		try:
-
 			windows.stopService(service)
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
-
 		except Exception as e:
-
 			print(f'não foi possível parar o serviço {service}')
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
