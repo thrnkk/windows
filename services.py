@@ -18,9 +18,9 @@ class WindowsDAO(object):
 		self.timeOut = 60
 
 	def connect(self):
-    '''
-    Cria conexão com o servidor
-    '''
+		'''
+		Cria conexão com o servidor
+		'''
 		
 		try:
 			connect = wmi.WMI(self.ip, user = self.user, password = self.passw)
@@ -31,11 +31,11 @@ class WindowsDAO(object):
 		return connect
 
 	def getCredentials(self, credential):
-    '''
-    Obtém credenciais
-    '''
+		'''
+		Obtém credenciais
+		'''
 
-    // necessário alterar conforme necessidade
+		# necessário alterar conforme necessidade
 		file = open("../application/application.ini", "r")
 
 		for line in file.readlines():
@@ -46,18 +46,18 @@ class WindowsDAO(object):
 		file.close()
 
 	def getService(self, serviceName):
-    '''
-    Obtém serviço
-    '''
+		'''
+		Obtém serviço
+		'''
 
 		sql = f"SELECT * FROM Win32_Service where DisplayName = '{serviceName}' OR Name = '{serviceName}' "
 
 		return self.connection.query(sql)
 
 	def getAllServices(self):
-    '''
-    Obtém todos os serviços de uma lista
-    '''
+		'''
+		Obtém todos os serviços de uma lista
+		'''
 
 		services = ['a', 'b', 'c']
 
@@ -70,9 +70,9 @@ class WindowsDAO(object):
 		return json
 
 	def startService(self, service):
-    '''
-    Inicia serviço
-    '''
+		'''
+		Inicia serviço
+		'''
 
 		if service.State == 'Stopped':
 
@@ -83,9 +83,9 @@ class WindowsDAO(object):
 			raise Exception(f"erro ao iniciar o serviço {service.DisplayName}.")
 
 	def stopService(self, service):
-    '''
-    Para serviço
-    '''
+		'''
+		Para serviço
+		'''
 
 		if service.State == 'Running':
 
@@ -96,9 +96,9 @@ class WindowsDAO(object):
 			raise Exception(f"erro ao parar o serviço {service.DisplayName}.")
 
 	def restartService(self, service):
-    '''
-    Reinicia serviço
-    '''
+		'''
+		Reinicia serviço
+		'''
 
 		if service.State == 'Running':
 
