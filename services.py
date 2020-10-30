@@ -126,7 +126,7 @@ if __name__ == "__main__":
 		try:
 
 			windows.restartService(service)
-			service = self.getService(service.DisplayName)[0]
+			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
 
 		except Exception as e:
@@ -139,21 +139,21 @@ if __name__ == "__main__":
 
 		try:
 
-			netsystem.startService(service)
+			windows.startService(service)
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
 
 		except Exception as e:
 
 			print(f'não foi possível iniciar o serviço {service}')
-			service = self.getService(service.DisplayName)[0]
+			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
 
 	elif action == 'stop':
 
 		try:
 
-			netsystem.stopService(service)
+			windows.stopService(service)
 			service = windows.getService(service.DisplayName)[0]
 			print(service.State)
 
