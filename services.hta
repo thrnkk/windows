@@ -1,0 +1,519 @@
+<html>
+<head>
+<title>Restart Servicos</title>
+<HTA:APPLICATION
+	ID = "ServiceCheckerApp"
+	APPLICATIONNAME="Service Check"
+	BORDER = "thin"
+	CAPTION = "yes"
+	RESIZE = "no"
+	SHOWINTASKBAR = "yes"
+	SINGLEINSTANCE = "no"
+	SYSMENU = "Yes"
+	WINDOWSTATE = "normal"
+	SCROLL = "no"
+	VERSION = "1.0"
+	INNERBORDER = "no"
+	SELECTION = "no"
+	MAXIMIZEBUTTON = "no"
+	MINIMIZEBUTTON = "yes"
+	NAVIGABLE = "yes"
+	CONTEXTMENU = "yes"
+	BORDERSTYLE = "normal">
+</HTA>
+
+<script language="VBScript">
+
+'Variáveis globais'
+Dim objWMIService, group, arrServers, arrServices, strHTAPath, dctServers, dctServices
+Dim fso, objOutFile, strUser
+
+'Usuário logado na máquina'
+strUser = CreateObject("WScript.Network").UserName
+
+'Caminho do log'
+Set fso = CreateObject("Scripting.FileSystemObject")
+filePath = 'Caminho do arquivo para log'
+
+'Dados de conexão'
+server =  'Preencha aqui'
+user   =  'Preencha aqui'
+pass   =  'Preencha aqui'
+
+'Procedure para inicialização da tela'
+Sub Window_OnLoad
+
+	Set dctServers = CreateObject("Scripting.Dictionary")
+	dctServers.CompareMode = vbTextCompare
+	Set dctServices = CreateObject("Scripting.Dictionary")
+	dctServices.CompareMode = vbTextCompare
+
+	'Obtem caminho do arquivo .hta no servidor'
+    If Mid(document.location, 6, 3) = "///" Then
+    	strHTAPath = Mid(Replace(Replace(document.location, "%20", " "), "/", "\"), 9)
+    Else
+    	strHTAPath = Mid(Replace(Replace(document.location, "%20", " "), "/", "\"), 6)
+    End If
+
+    'Configurações iniciais de tela'
+	width = 600
+	height = 700
+	x = (window.screen.width - width) / 2
+	y = (window.screen.height - height) / 2
+	If x < 0 Then x = 0
+	If y < 0 Then y = 0
+	window.resizeTo width,height
+	window.moveTo x,y
+	serviceDiv.focus
+	serviceDiv.style.display = "none"
+	BuildServerList
+
+End Sub
+
+'Procedure para consultar os serviços'
+Sub getServices
+
+	'Limpa a caixa de Progresso'
+	progressDIV.innertext = ""
+	ClearOrderList
+
+	'Se não for possível encontrar nenhum serviço'
+	If lst_servers.value = "" Then
+		Exit Sub
+	End If
+
+	'Conecta aos serviços'
+	Set objWMIService = GetObject("winmgmts:\\.\root\cimv2")
+	Set objStatus = objWMIService.Get("Win32_PingStatus.Address='" & lst_servers.value & "',BufferSize=32,NoFragmentation=FALSE,RecordRoute=0,ResolveAddressNames=FALSE,SourceRoute='',SourceRouteType=0,Timeout=1000,TimestampRoute=0,TimeToLive=128,TypeofService=128")
+	If IsNull(objStatus.StatusCode) Or objStatus.StatusCode <> 0 Then
+		MsgBox "Nao foi possivel se conectar ao " & lst_servers.value & ", tente novamente em alguns segundos."
+		Exit Sub
+	End If
+
+	'Cria tabelas'
+	serviceDiv.style.display = "inline"
+	If tableDiv.innerhtml <> "" Then
+		tableDiv.innerhtml = ""
+	End If
+	Set oTable = document.createElement("<TABLE>")
+	tableDiv.appendChild(oTable)
+	Set oTBody = document.createElement("TBODY")
+	oTable.appendChild(oTBody)
+
+	'Conecta ao servidor'
+	Set locator = CreateObject("WbemScripting.SWbemLocator")
+	Set objWMIService = locator.ConnectServer(server, "root\cimv2", user, pass)
+  
+	'Constroi o SELECT'
+	strWhere = "Where"
+	For Each strService In dctServices
+		If strWhere <> "Where" Then strWhere = strWhere & " OR "
+		strWhere = strWhere & " DisplayName='" & strService & "' OR Name='" & strService & "'"
+	Next
+
+	'Executa o SELECT'
+	Set colServiceList = objWMIService.ExecQuery("SELECT * FROM Win32_Service " & strWhere)
+	For Each objServiceList In colServiceList
+
+		'Mostra apenas os serviços "Auto" e "Manual", ignorando os serviços "Boot", "System" or "Disabled"'
+ 	 	If (objServiceList.StartMode = "Auto" Or objServiceList.StartMode = "Manual") Then
+
+ 	 		'Cria lista de serviços'
+			Set oRow = document.createElement("<TR>")
+	 	 	oTBody.appendChild(oRow)
+	 	 	Set oCell = document.createElement("<TD align='left' bgcolor='#f0f0f0'>")
+	 	 	oCell.innerText = objServiceList.DisplayName
+	 	 	oRow.appendChild(oCell)
+
+	 	 	'Define a cor da caixa do serviço'
+			Select Case objServiceList.State
+				Case "Running"
+					'Verde'
+					strBGCOLOR = "#00cd00"
+				Case "Stopped"
+					'Vermelho'
+					strBGCOLOR = "#fd0000"
+				'"Start Pending", "Stop Pending", "Continue Pending", "Pause Pending", "Paused", "Unknown"'
+				Case Else
+					'Amarelo'
+					strBGCOLOR = "#ffff00"
+			End Select
+
+			'Cria linha na lista de serviços'
+			Set oCell = document.createElement("<TD BGCOLOR=" & strBGCOLOR & " align=center>")
+	 	 	oRow.appendChild(oCell)
+	 	 	Set oElem = document.createElement("<SPAN>")
+	 	 	oElem.innerText = objServiceList.State
+	 	 	oCell.appendChild(oElem)
+
+	 	 	'Se o serviço estiver diferente de "Running" ou "Stopped"'
+	 	 	If strBGCOLOR = "#FFFF00" Then
+
+	 	 		'Desabilita o checkbox'
+	 	 		Set oElem=document.createElement("<INPUT TYPE='checkbox' NAME='NIC' DISABLED>")
+	 	 	Else
+	 	 		Set oElem=document.createElement("<INPUT TYPE=checkbox NAME='NIC' VALUE='" & objServiceList.Name & "' onClick='OrderList(""" & objServiceList.Name & "|" & objServiceList.DisplayName & """)'>")
+			End If
+
+	 	 	oCell.appendChild(oElem)
+
+		End If
+	Next
+End Sub
+
+'Procedure responsável por ordenar a lista de serviços'
+Sub OrderList(strValues)
+	strName = Split(strValues, "|")(0)
+	strDisplayName = Split(strValues, "|")(1)
+	Set group = document.getElementsByName("NIC")
+	For i = 0 To group.length - 1
+		If group(i).value = strName And group(i).checked = True Then
+			Set objOption = Document.createElement("OPTION")
+			objOption.Text = strDisplayName
+			objOption.Value = strName
+			lst_order.Add(objOption)
+		ElseIf group(i).value = strName And group(i).checked = False Then
+			For Each objOption In lst_order.Options
+				If objOption.Value = strName Then objOption.RemoveNode
+			Next
+		End If
+	Next
+End Sub
+
+'Remove as serviços selecionados na tabela Ordem de Operação'
+Sub ClearOrderList
+	For Each objOption In lst_order.Options
+		objOption.RemoveNode
+	Next
+End Sub
+
+'Inicia o serviço'
+Sub startService
+    Set group = document.getElementsByName("NIC")
+	For Each objOption In lst_order.options
+		For i = 0 To group.length - 1
+
+			'Se está parado...'
+			If group(i).value = objOption.value And group(i).checked = True And group(i).parentNode.bgColor = "#fd0000" Then
+
+				'Conecta no servidor'
+				Set locator = CreateObject("WbemScripting.SWbemLocator")
+				Set objWMIService = locator.ConnectServer(server, "root\cimv2", user, pass)
+
+				'Busca o serviço'
+				Set objService = objWMIService.Get("Win32_Service.Name='" & group(i).value & "'")
+
+				'Quando a recursão de inicialização terminar'
+				If RecursiveServiceStart(objService) = True Then
+
+					'Define o status como "Running" e colore de verde'
+					group(i).parentNode.bgColor = "#00cd00"
+					group(i).parentNode.childNodes(0).innertext = "Running"
+
+				End If
+
+				group(i).checked = False
+			End If
+		Next
+	Next
+	ClearOrderList
+End Sub
+
+'Para o serviço'
+Sub stopService(strRestart)
+    Set group = document.getElementsByName("NIC")
+    For Each objOption In lst_order.options
+		For i = 0 To group.length - 1
+
+			'Se está rodando...'
+			If group(i).value = objOption.value And group(i).checked = True And group(i).parentNode.bgColor = "#00cd00" Then
+
+				'Conecta no servidor'
+				Set locator = CreateObject("WbemScripting.SWbemLocator")
+				Set objWMIService = locator.ConnectServer(server, "root\cimv2", user, pass)
+
+				'Busca o serviço'
+				Set objService = objWMIService.Get("Win32_Service.Name='" & group(i).value & "'")
+
+				'Quando a recursão de parada terminar'
+				If RecursiveServiceStop(objService) = True Then
+
+					If strRestart = "false" Then
+						group(i).checked = False
+					End If
+
+				End If
+
+			End If
+
+		Next
+	Next
+	If strRestart = "false" Then ClearOrderList
+End Sub
+
+Sub restartService
+	stopService("true")
+	startService
+End Sub
+
+'Função de Recursão - Start'
+Function RecursiveServiceStart(objSvc)
+
+	'Se estiver parado ou parando'
+	If (objSvc.State = "Stopped" Or objSvc.State = "Stop Pending") Then
+		If (objSvc.StartMode = "Auto" Or objSvc.StartMode = "Manual") Then
+
+			'Se estiver parando'
+			If (objSvc.State = "Stop Pending") Then
+				
+				'Continua recursão'
+				startService
+
+			'Se estiver parado'
+			Else
+				intRC = objSvc.StartService
+				If intRC > 0 Then
+
+					'Adiciona mensagem no campo Progresso'
+					progressDIV.innertext = progressDIV.innertext & vbCrLf & " Error starting service: " & objSvc.DisplayName
+					RecursiveServiceStart = False
+
+					'Adiciona mensagem no log'
+					Set objOutFile = fso.OpenTextFile(filePath, 8, true, 0)	
+				    objOutFile.WriteLine strUser & ";" & Now() & ";" & "Error starting service " & objSvc.DisplayName
+				    objOutFile.Close
+
+					Exit Function
+				Else
+
+					'Adiciona mensagem no campo Progresso'
+					progressDIV.innertext = progressDIV.innertext & vbCrLf & " Successfully started service: " & objSvc.DisplayName
+					RecursiveServiceStart = True
+
+					'Adiciona mensagem no log'
+					Set objOutFile = fso.OpenTextFile(filePath, 8, true, 0)	
+				    objOutFile.WriteLine strUser & ";" & Now() & ";" & "Started service " & objSvc.DisplayName
+				    objOutFile.Close
+
+				End If
+			End If
+		End If
+	Else
+		For Each objGroup In group
+			If objSvc.Name = objGroup.value Then
+
+				'Define o status como "Running" e colore de verde'
+				objGroup.parentNode.bgColor = "#00cd00"
+				objGroup.parentNode.childNodes(0).innertext = "Running"
+			End If
+		Next	
+	End If
+
+	Set locator = CreateObject("WbemScripting.SWbemLocator")
+	Set objWMIService = locator.ConnectServer(server, "root\cimv2", user, pass)
+
+	Set colServices = objWMIService.ExecQuery("Associators of " _
+			& "{Win32_Service.Name='" & objSvc.Name & "'} Where " _
+			& "AssocClass=Win32_DependentService Role=Dependent" )
+	For each objS in colServices
+		RecursiveServiceStart objS
+	Next
+End Function
+
+'Função de Recursão - Stop'
+Function RecursiveServiceStop(objSvc)
+
+	'Conecta no servidor'
+	Set locator = CreateObject("WbemScripting.SWbemLocator")
+	Set objWMIService = locator.ConnectServer(server, "root\cimv2", user, pass)
+
+	'Procura subprocessos'
+	Set colServices = objWMIService.ExecQuery("Associators of " _
+			& "{Win32_Service.Name='" & objSvc.Name & "'} Where " _
+			& "AssocClass=Win32_DependentService Role=Antecedent" )
+	For Each objS In colServices
+		
+		RecursiveServiceStop objS
+	Next
+
+	'Se está rodando'
+	If (objSvc.StartMode = "Auto" Or objSvc.StartMode = "Manual") And objSvc.State = "Running" Then
+		intRC = objSvc.StopService
+		If intRC > 0 Then
+
+			'Adiciona mensagem no campo Progresso'
+			progressDIV.innertext = progressDIV.innertext & vbCrLf & " Error stopping service: " & objSvc.DisplayName & " - Error: " & intRC
+			RecursiveServiceStop = False
+
+			'Adiciona mensagem no log'
+			Set objOutFile = fso.OpenTextFile(filePath, 8, true, 0)						
+		    objOutFile.WriteLine strUser & ";" & Now() & ";" & "Error stopping service " & objSvc.DisplayName
+		    objOutFile.Close
+
+			Exit Function
+		Else 
+
+			'Adiciona mensagem no campo Progresso'
+			progressDIV.innertext = progressDIV.innertext & vbCrLf & " Successfully stopped service: " & objSvc.DisplayName
+
+			'Adiciona mensagem no log'
+			Set objOutFile = fso.OpenTextFile(filePath, 8, true, 0)			
+		    objOutFile.WriteLine strUser & ";" & Now() & ";" & "Stopped service " & objSvc.DisplayName
+		    objOutFile.Close
+
+		    'Para cada processo e subprocesso'
+			For Each objGroup In group
+				If objSvc.Name = objGroup.value Then
+
+					'Define o status como "Stopped" e colore de vermelho'
+					objGroup.parentNode.bgColor = "#fd0000"
+					objGroup.parentNode.childNodes(0).innertext = "Stopped"	
+				End If
+			Next
+			RecursiveServiceStop = True
+		End If
+	End If
+End Function
+
+'Constroi a Lista de Serviços'
+Sub BuildServerList
+
+	'Conecta no arquivo de configuração'
+	strConfigFile = Left(strHTAPath, InStrRev(strHTAPath, "\")) & "ServiceControlSettings.cfg"
+	arrSections = Array("servers", "services")
+	Set objFSO = CreateObject("Scripting.FileSystemObject")
+
+	''
+	If objFSO.FileExists(strConfigFile) = True Then
+		Set objConfig = objFSO.OpenTextFile(strConfigFile, 1, False)
+		strMode = ""
+		While Not objConfig.AtEndOfStream
+			strLine = Trim(objConfig.ReadLine)
+			For Each strSection In arrSections
+				If LCase(strLine) = "[" & LCase(strSection) & "]" Then strMode = strSection
+			Next
+			If strMode <> "" And strLine <> "" And Left(strLine, 1) <> "[" Then
+				Execute "If dct" & strMode & ".Exists(""" & strLine & """) = False Then dct" & strMode & ".Add """ & strLine & """, 0 Else MsgBox ""Duplicate of " & strLine & " found in the " & strMode & " section. Ignoring."""
+			Else
+				If Left(strLine, 1) <> "[" And strLine <> "" Then MsgBox "Unable to determine section in configuration file for " & strLine
+			End If
+		Wend
+		objConfig.Close
+	Else
+		'Arquivo não encontrado'
+		MsgBox "Unable to find configuration file" & vbCrLf & strConfigFile
+	End If
+
+	'Não há servidores ou serviços no arquivo'
+	If dctServers.Count = 0 Or dctServices.Count = 0 Then
+		If dctServers.Count = 0 Then
+			MsgBox "No servers were found in the configuration file."
+		Else
+			MsgBox "No services were found in the configuration file."
+		End If
+	Else
+
+		'Para cada serviço cria uma linha na lista'
+		For Each strServer In dctServers.Keys
+			Set objOption = Document.createElement("OPTION")
+			objOption.Text = strServer
+			objOption.Value = strServer
+			lst_Servers.Add(objOption)
+		Next
+	End If
+End Sub
+
+</script>
+
+<style>
+	body
+	{
+		background-color: #008B8B;
+		font-family: Helvetica;
+		font-size: 8pt;
+		margin-top: 10px;
+		margin-left: 20px;
+		margin-right: 10px;
+		margin-bottom: 10px;
+	}
+	TD
+	{
+		font-family: Trebuchet MS;
+		font-size: 8pt;
+	}
+	LEGEND
+	{
+		font-family: Trebuchet MS;
+		font-size: 10pt;
+	}
+	Select
+	{
+		font-family: Trebuchet MS;
+		font-size: 8pt;
+		width:195px
+	}
+	INPUT
+	{
+		font-family: Trebuchet MS;
+		font-size: 8pt;
+	}
+</style>
+
+<body>
+	<div>
+		Nome dos Servidores: <select id="lst_servers" name="lst_servers" size=1 style="width:150px">
+			<option id="opt_select" value="opt_select"> --- Selecione um Servidor --- </option>
+		</select>&nbsp;&nbsp;&nbsp;
+		<input type="button" value="Listar Servicos" onclick="getServices" title="Click para reiniciar os servicos">
+		<br><br>
+		<input type="button" value="Iniciar" onclick="startService" title="Click para Iniciar os servicos">
+		<input type="button" value="Parar" onclick="stopService('false')" title="Click para Parar os servicos">
+		<input type="button" value="Reiniciar" onclick="restartService" title="Click para Reiniciar os servicos">
+	</div>
+	<div id="serviceDiv" style="position: absolute; left: 4%; top: 10%; width: 100%; height: 89%; overflow-y: scroll; scrollbar-arrow-color: blue; scrollbar-face-color: #e7e7e7; scrollbar-3dlight-color: #a0a0a0; scrollbar-darkshadow-color: #888888">
+		<table border="0" cellspacing="0" CellSpacing="0">
+		<tr>
+			<td valign="top" colspan="3"><br>
+				<fieldset>
+					<legend><b>Lista de Servicos</b></legend>
+					<div id = "tableDiv"></div>
+				</fieldset>
+			</td>
+			<td>
+				<fieldset><br>
+					<legend><b>Ordem de Operacao</b></legend>
+					<div id = "orderDiv">
+						<table>
+							<tr>
+								<td>
+									<select id="lst_order" name="lst_order" size=10 style="width:200px">
+									</select>
+								</td>
+<!--
+								<td>
+									<input type="button" value="Move to top" onclick="MoveTop" title="Move to top" style="width:100px"><br><br>
+									<input type="button" value="Move up" onclick="MoveUp" title="Move up" style="width:100px"><br><br>
+									<input type="button" value="Move down" onclick="MoveDown" title="Move down" style="width:100px"><br><br>
+									<input type="button" value="Move bottom" onclick="MoveBottom" title="Move to bottom" style="width:100px">
+								</td>
+-->
+							</tr>
+						</table>
+					</div>
+				</fieldset>				
+			</td>
+		</tr>
+		<tr>
+			<td valign="top" colspan="4">
+				<br>
+				<fieldset>
+					<legend><b>Progresso</b></legend>
+					<div id = "progressDiv"></div>
+				</fieldset>
+			</td>
+		<tr>
+		</table>
+	</div>
+
+</body>
+</html>
