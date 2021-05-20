@@ -9,10 +9,10 @@ class TotvsDAO(object):
 
 	def __init__(self):
 
-		self.host = 'ndb-db01'
-		self.port = 22
-		self.user = "root"
-		self.passw = "e4.v4.p0"
+		self.host = 'host'
+		self.port = 'port'
+		self.user = 'user'
+		self.passw = 'password'
 
 		self.ssh = self.connect()
 
@@ -57,7 +57,7 @@ class TotvsDAO(object):
 
 			#    0        1         2          3        4         5         6          7         8            9            10
 			#  'usr'  | 'pid' | 'weekday' | 'month' | 'day' |   'hour'  | 'year' | 'user id' | 'Type' |     'tty'      | 'Limbo?'
-			#  2454   | 4160  |    Tue    |   Nov   |   3   |  04:34:07 |  2020  |   peter   |  REMC  | NDBPODT1260776 |   no
+			#  2454   | 4160  |    Tue    |   Nov   |   3   |  04:34:07 |  2020  |   jonas   |  REMC  | NDBPODT1260776 |   no
 
 			for row in response:
 				row = ' '.join(row.split()).rstrip('\r\n')
